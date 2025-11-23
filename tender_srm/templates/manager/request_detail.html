@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1>Детали заявки: {{ organization.name }}</h1>
+
+<h2>Информация об организации</h2>
+<ul>
+    <li>Тип: {{ organization.user.role }}</li>
+    <li>ФИО руководителя: {{ organization.fio }}</li>
+    <li>УНП: {{ organization.registration_number }}</li>
+    <li>Тип организации: {{ organization.org_type }}</li>
+    <li>Адрес: {{ organization.address|default:"Не указан" }}</li>
+    <li>Телефон: {{ organization.phone|default:"Не указан" }}</li>
+    <li>Статус: {{ organization.verification_status }}</li>
+</ul>
+
+<h2>Документы</h2>
+<table class="table">
+    <thead>
+        <tr>
+            <th>Название</th>
+            <th>Файл</th>
+            <th>Статус</th>
+            <th>Дата загрузки</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for doc in documents %}
+        <tr>
+            <td>{{ doc.name }}</td>
+            <td><a href="{{ doc.file.url }}" target="_blank">Скачать/Просмотреть</a></td>
+            <td>{{ doc.verification_status }}</td>
+            <td>{{ doc.uploaded_at|date:"d.m.Y H:i" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4">Документы не загружены</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<h2>Верификация</h2>
+<form method="post" action="{% url 'manager_verify_organization' organization.id %}">
+    {% csrf_token %}
+    <div class="form-group">
+        <label for="notes">Заметки (опционально):</label>
+        <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+    </div>
+    <button type="submit" name="action" value="approve" class="btn btn-success">Подтвердить</button>
+    <button type="submit" name="action" value="reject" class="btn btn-danger">Отклонить</button>
+</form>
+{% endblock %}

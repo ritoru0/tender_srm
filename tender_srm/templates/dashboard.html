@@ -1,0 +1,186 @@
+<!-- templates/dashboard.html -->
+{% extends 'base.html' %}
+{% load humanize %}  <!-- для красивого форматирования чисел и дат -->
+
+{% block title %}Личный кабинет{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <h1 class="display-5 fw-bold text-primary">
+                Добро пожаловать, {{ user.username }}!
+            </h1>
+            <p class="lead text-muted">
+                Роль: <strong class="text-primary">{{ user.get.get_role_display }}</strong>
+                {% if user.organization %}
+                    → <span class="text-success">{{ user.organization.name }}</span>
+                    {% if user.organization.verification_status == 'Подтверждено' %}
+                        <span class="badge bg-success ms-2">Подтверждена</span>
+                    {% elif user.organization.verification_status == 'На проверке' %}
+                        <span class="badge bg-warning text-dark ms-2">На проверке</span>
+                    {% else %}
+                        <span class="badge bg-danger ms-2">Отклонена</span>
+                    {% endif %}
+                {% endif %}
+            </p>
+        </div>
+        <div class="col-lg-4 text-end">
+            <a href="{% url 'logout' %}" class="btn btn-outline-danger btn-lg">
+                Выйти
+            </a>
+        </div>
+    </div>
+
+    <!-- ===================== МЕНЕДЖЕР ===================== -->
+    {% if user.role == 'Менеджер' %}
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card border-warning shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="display-4 fw-bold text-warning">
+                        {{ pending_organizations_count|default:0 }}
+                    </div>
+                    <h5 class="card-title mt-3">Организации на проверке</h5>
+                    <p class="text-muted">Требуют верификации документов</p>
+                    <a href="{% url 'manager_requests' %}" class="btn btn-warning">
+                        Перейти к проверке
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-info shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="display-4 fw-bold text-info">
+                        {{ pending_proposals_count|default:0 }}
+                    </div>
+                    <h5 class="card-title mt-3">Заявки на тендеры</h5>
+                    <p class="text-muted">Ожидают проверки</p>
+                    <a href="{% url 'manager_requests' %}" class="btn btn-info">
+                        Проверить предложения
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card border-success shadow-sm h-100">
+                <div class="card-body text-center">
+                    <div class="display-4 fw-bold text-success">
+                        {{ active_tenders_count|default:0 }}
+                    </div>
+                    <h5 class="card-title mt-3">Активные тендеры</h5>
+                    <p class="text-muted">Открыты для участия</p>
+                    <a href="{% url 'tender_list' %}" class="btn btn-success">
+                        Все тендеры
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== ФИРМА ===================== -->
+    {% elif user.role == 'Фирма' and user.organization.verification_status == 'Подтверждено' %}
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="card bg-gradient border-0 shadow-lg text-white" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <div class="card-body text-center py-5">
+                    <h2 class="display-5 fw-bold">{{ my_tenders.count }}</h2>
+                    <h4>Ваши тендеры</h4>
+                    <p class="opacity-75">Создано и опубликовано</p>
+                    <a href="{% url 'create_tender' %}" class="btn btn-light btn-lg mt-3">
+                        Создать новый тендер
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card border-primary shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title text-primary">
+                        Активные тендеры на рынке
+                    </h5>
+                    <h2 class="display-5 fw-bold text-primary">{{ active_tenders.count }}</h2>
+                    <p class="text-muted">Можно отслеживать ход выполнения</p>
+                    <a href="{% url 'tender_list' %}" class="btn btn-outline-primary">
+                        Перейти к тендерам
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Если фирма не подтверждена -->
+    {% elif user.role == 'Фирма' %}
+    <div class="alert alert-warning text-center py-5" role="alert">
+        <h4>Ожидание подтверждения организации</h4>
+        <p>Ваша организация <strong>{{ user.organization.name }}</strong> находится на проверке.</p>
+        <p>После подтверждения менеджером вы сможете создавать тендеры.</p>
+        <div class="mt-4">
+            <i class="bi bi-hourglass-split display-1 text-warning"></i>
+        </div>
+    </div>
+
+    <!-- ===================== ПОСТАВЩИК ===================== -->
+    {% elif user.role == 'Поставщик' and user.organization.verification_status == 'Подтверждено' %}
+    <div class="row g-4">
+        <div class="col-md-7">
+            <div class="card border-success shadow-sm">
+                <div class="card-body">
+                    <h4 class="card-title text-success">
+                        Доступные тендеры
+                    </h4>
+                    <h2 class="display-5 fw-bold text-success">{{ active_tenders.count }}</h2>
+                    <p>Вы можете подать заявку на участие</p>
+                    <a href="{% url 'tender_list' %}" class="btn btn-success btn-lg">
+                        Найти тендер
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-5">
+            <div class="card border-info shadow-sm h-100">
+                <div class="card-body">
+                    <h5 class="card-title text-info">Ваши заявки</h5>
+                    <h3 class="fw-bold text-info">{{ my_proposals.count }}</h3>
+                    <p class="text-muted">Поданные предложения</p>
+                    <a href="#" class="btn btn-outline-info">История заявок</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Если поставщик не подтверждён -->
+    {% elif user.role == 'Поставщик' %}
+    <div class="alert alert-info text-center py-5" role="alert">
+        <h4 class="fw-bold">Ожидание подтверждения</h4>
+        <p>Ваша организация <strong>{{ user.organization.name }}</strong> проходит проверку документов.</p>
+        <p>После подтверждения вы сможете участвовать в тендерах.</p>
+        <div class="mt-4">
+            <i class="bi bi-clock-history display-1 text-info"></i>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Кнопки быстрого доступа (все роли) -->
+    <div class="mt-5 text-center">
+        <div class="btn-group" role="group">
+            <a href="{% url 'tender_list' %}" class="btn btn-outline-primary btn-lg">
+                Все тендеры
+            </a>
+            {% if user.role == 'Менеджер' %}
+                <a href="{% url 'manager_requests' %}" class="btn btn-outline-warning btn-lg">
+                    Панель менеджера
+                </a>
+            {% endif %}
+            <a href="{% url 'api_profile' %}" class="btn btn-outline-secondary btn-lg" target="_blank">
+                API Профиль (JSON)
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

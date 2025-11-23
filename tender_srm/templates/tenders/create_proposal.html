@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Подать заявку на тендер{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow">
+                <div class="card-header bg-info text-white">
+                    <h4>Тендер: {{ tender.title }}</h4>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <p><strong>Организатор:</strong> {{ tender.organization.name }}</p>
+                        <p><strong>Бюджет:</strong> {{ tender.budget }} ₽</p>
+                        <p><strong>Дата окончания:</strong> {{ tender.end_date }}</p>
+
+                        <hr>
+                        <h5>Загрузите документы для участия</h5>
+                        <p class="text-muted">PDF, до 10 МБ каждый</p>
+
+                        <div id="documents-container">
+                            {% for doc_form in document_formset %}
+                                <div class="border p-3 mb-3 rounded document-item">
+                                    {{ doc_form.name|as_crispy_field }}
+                                    {{ doc_form.file|as_crispy_field }}
+                                    <button type="button" class="btn btn-danger btn-sm remove-doc">Удалить</button>
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <button type="button" id="add-document" class="btn btn-outline-secondary mb-3">
+                            Добавить документ
+                        </button>
+
+                        {{ document_formset.management_form }}
+
+                        <div class="text-end mt-4">
+                            <a href="{% url 'tender_detail' tender.id %}" class="btn btn-secondary">Назад</a>
+                            <button type="submit" class="btn btn-success btn-lg">Подать заявку</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">Критерии оценки</div>
+                <ul class="list-group list-group-flush">
+                    {% for tc in tender.criteria.all %}
+                        <li class="list-group-item">
+                            <strong>{{ tc.criterion.name }}</strong><br>
+                            <small class="text-muted">Вес: {{ tc.weight }} | Макс. балл: {{ tc.criterion.max_value }}</small>
+                        </li>
+                    {% empty %}
+                        <li class="list-group-item text-muted">Критерии не указаны</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('add-document').onclick = function() {
+    const container = document.getElementById('documents-container');
+    const totalForms = document.querySelector('#id_documents-TOTAL_FORMS');
+    const formCount = parseInt(totalForms.value);
+    const newForm = container.children[0].cloneNode(true);
+    
+    newForm.innerHTML = newForm.innerHTML
+        .replace(/documents-\d+/g, `documents-${formCount}`)
+        .replace(/documents___prefix__/g, `documents-${formCount}`);
+    
+    container.appendChild(newForm);
+    totalForms.value = formCount + 1;
+};
+
+document.addEventListener('click', e => {
+    if (e.target && e.target.classList.contains('remove-doc')) {
+        if (document.querySelectorAll('.document-item').length > 1) {
+            e.target.closest('.document-item').remove();
+        }
+    }
+});
+</script>
+{% endblock %}

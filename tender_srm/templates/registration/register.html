@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+{% block title %}Регистрация{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-9">
+            <div class="card border-0 shadow-lg" style="border-radius: 20px; overflow: hidden;">
+                <div class="card-header text-white text-center py-4" style="background: linear-gradient(135deg, #4361ee, #3a56d4);">
+                    <h3 class="mb-0"><i class="bi bi-person-plus-fill"></i> Регистрация в TenderFlow</h3>
+                </div>
+                <div class="card-body p-5">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+
+                        <!-- Основные поля пользователя -->
+                        <h5 class="text-primary mb-3"><i class="bi bi-person"></i> Основные данные</h5>
+                        <div class="row g-3">
+                            <div class="col-md-6">{{ form.username|as_crispy_field }}</div>
+                            <div class="col-md-6">{{ form.email|as_crispy_field }}</div>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-6">{{ form.password1|as_crispy_field }}</div>
+                            <div class="col-md-6">{{ form.password2|as_crispy_field }}</div>
+                        </div>
+
+                        <div class="my-4">
+                            {{ form.role|as_crispy_field }}
+                        </div>
+
+                        <!-- Блок для Фирма/Поставщик -->
+                        <div id="org-fields" class="border rounded p-4 bg-light" style="display: none;">
+                            <h5 class="text-primary mb-3"><i class="bi bi-building"></i> Данные организации</h5>
+                            <div class="row g-3">
+                                <div class="col-md-6">{{ form.name|as_crispy_field }}</div>
+                                <div class="col-md-6">{{ form.fio|as_crispy_field }}</div>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-6">{{ form.registration_number|as_crispy_field }}</div>
+                                <div class="col-md-6">{{ form.org_type|as_crispy_field }}</div>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-6">{{ form.address|as_crispy_field }}</div>
+                                <div class="col-md-6">{{ form.phone|as_crispy_field }}</div>
+                            </div>
+
+                            <h5 class="text-primary mt-4 mb-3"><i class="bi bi-file-earmark-check"></i> Обязательные документы</h5>
+                            <div class="row g-3">
+                                <div class="col-md-4">{{ form.charter|as_crispy_field }}</div>
+                                <div class="col-md-4">{{ form.inn|as_crispy_field }}</div>
+                                <div class="col-md-4">{{ form.ogrn|as_crispy_field }}</div>
+                            </div>
+                            <small class="text-muted d-block mt-2">
+                                <i class="bi bi-info-circle"></i> Все документы проверяются менеджером. Формат: PDF
+                            </small>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary btn-lg w-100 mt-4">
+                            <i class="bi bi-check-circle"></i> Зарегистрироваться
+                        </button>
+                    </form>
+
+                    <div class="text-center mt-3">
+                        <a href="{% url 'login' %}">Уже есть аккаунт? Войдите</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const roleField = document.getElementById('id_role');
+    const orgFields = document.getElementById('org-fields');
+
+    function toggleOrgFields() {
+        if (roleField.value === 'Фирма' || roleField.value === 'Поставщик') {
+            orgFields.style.display = 'block';
+        } else {
+            orgFields.style.display = 'none';
+        }
+    }
+
+    roleField.addEventListener('change', toggleOrgFields);
+    window.onload = toggleOrgFields;
+</script>
+{% endblock %}

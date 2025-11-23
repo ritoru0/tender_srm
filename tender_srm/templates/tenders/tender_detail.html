@@ -1,0 +1,137 @@
+<!-- templates/tenders/tender_detail.html -->
+{% extends "base.html" %}
+{% load humanize %}
+
+{% block title %}{{ tender.title }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- Хлебные крошки -->
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'tender_list' %}">Тендеры</a></li>
+            <li class="breadcrumb-item active">{{ tender.title }}</li>
+        </ol>
+    </nav>
+
+    <!-- Основная информация о тендере -->
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h2 class="mb-0">{{ tender.title }}</h2>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Организатор:</strong> {{ tender.organization.name }}</p>
+                    <p><strong>Метод оценки:</strong> {{ tender.get_method_display }}</p>
+                    <p><strong>Бюджет:</strong> {{ tender.budget|intcomma }} ₽</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Дата начала:</strong> {{ tender.start_date }}</p>
+                    <p><strong>Дата окончания:</strong> {{ tender.end_date }}</p>
+                    <p><strong>Статус:</strong> 
+                        <span class="badge {% if tender.status == 'Открыт' %}bg-success{% else %}bg-secondary{% endif %}">
+                            {{ tender.get_status_display }}
+                        </span>
+                    </p>
+                </div>
+            </div>
+            
+            {% if tender.description %}
+            <div class="mt-3">
+                <h5>Описание:</h5>
+                <p>{{ tender.description }}</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Критерии оценки -->
+    <div class="card mb-4">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0">Критерии оценки</h5>
+        </div>
+        <div class="card-body">
+            {% if tender.criteria.all %}
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Критерий</th>
+                            <th>Тип</th>
+                            <th>Вес</th>
+                            <th>Направление</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for criterion in tender.criteria.all %}
+                        <tr>
+                            <td>{{ criterion.criterion.name }}</td>
+                            <td>{{ criterion.criterion.get_criterion_type_display }}</td>
+                            <td>{{ criterion.weight }}</td>
+                            <td>{{ criterion.criterion.get_direction_display }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted">Критерии оценки не указаны.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Действия -->
+    <div class="card">
+        <div class="card-header bg-light">
+            <h5 class="mb-0">Действия</h5>
+        </div>
+        <div class="card-body">
+            {% if can_participate %}
+            <a href="{% url 'create_proposal' tender.id %}" class="btn btn-success">
+                Подать заявку
+            </a>
+            {% elif is_owner %}
+            <div class="d-flex gap-2">
+                <button class="btn btn-primary">Редактировать тендер</button>
+                <button class="btn btn-warning">Закрыть тендер</button>
+                
+                {% if proposals %}
+                <div class="ms-auto">
+                    <h6>Заявки на этот тендер:</h6>
+                    <div class="list-group">
+                        {% for proposal in proposals %}
+                        <div class="list-group-item">
+                            <div class="d-flex w-100 justify-content-between">
+                                <h6 class="mb-1">{{ proposal.supplier.name }}</h6>
+                                <span class="badge {% if proposal.status == 'Подана' %}bg-warning{% elif proposal.status == 'Подтверждена' %}bg-success{% else %}bg-danger{% endif %}">
+                                    {{ proposal.get_status_display }}
+                                </span>
+                            </div>
+                            <p class="mb-1">Подана: {{ proposal.submitted_at|date:"d.m.Y H:i" }}</p>
+                            {% if proposal.final_score %}
+                            <small>Финальный балл: {{ proposal.final_score }}</small>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <p class="text-muted">
+                {% if not user.is_authenticated %}
+                <a href="{% url 'login' %}">Войдите</a> в систему для участия в тендере.
+                {% elif user.role != 'Поставщик' %}
+                Только поставщики могут участвовать в тендерах.
+                {% elif not hasattr.user.organization %}
+                Для участия в тендерах необходимо зарегистрировать организацию.
+                {% elif user.organization.verification_status != 'Подтверждено' %}
+                Ваша организация ожидает проверки.
+                {% endif %}
+            </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

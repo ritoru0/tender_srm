@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Создать тендер{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-10">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Создать новый тендер</h3>
+                </div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <!-- Основная информация о тендере -->
+                        <h5 class="mb-3">Основная информация</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                {{ form.title|as_crispy_field }}
+                                {{ form.method|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.start_date|as_crispy_field }}
+                                {{ form.end_date|as_crispy_field }}
+                            </div>
+                        </div>
+                        
+                        {{ form.description|as_crispy_field }}
+                        {{ form.budget|as_crispy_field }}
+
+                        <hr>
+                        
+                        <!-- Критерии оценки -->
+                        <h5 class="mb-3">Критерии оценки</h5>
+                        <div id="criteria-container">
+                            {{ criteria_formset.management_form }}
+                            {% for criterion_form in criteria_formset %}
+                                <div class="border p-3 mb-3 rounded criterion-item">
+                                    {{ criterion_form.criterion|as_crispy_field }}
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            {{ criterion_form.weight|as_crispy_field }}
+                                        </div>
+                                        <div class="col-md-6">
+                                            <button type="button" class="btn btn-danger btn-sm remove-criterion mt-4">
+                                                Удалить критерий
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <button type="button" id="add-criterion" class="btn btn-outline-secondary mb-3">
+                            + Добавить критерий
+                        </button>
+
+                        <div class="text-end mt-4">
+                            <a href="{% url 'tender_list' %}" class="btn btn-secondary me-2">Отмена</a>
+                            <button type="submit" class="btn btn-success btn-lg">Создать тендер</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('criteria-container');
+    const totalForms = document.getElementById('id_criteria-TOTAL_FORMS');
+    const addButton = document.getElementById('add-criterion');
+    
+    // Функция для добавления нового критерия
+    addButton.onclick = function() {
+        const formCount = parseInt(totalForms.value);
+        const lastForm = container.querySelector('.criterion-item:last-child');
+        
+        if (!lastForm) return;
+        
+        const newForm = lastForm.cloneNode(true);
+        
+        // Обновляем индексы в новой форме
+        const regex = new RegExp(`-${formCount - 1}-`, 'g');
+        newForm.innerHTML = newForm.innerHTML.replace(regex, `-${formCount}-`);
+        
+        // Обновляем id и name атрибуты
+        const inputs = newForm.querySelectorAll('input, select, label');
+        inputs.forEach(input => {
+            if (input.name) {
+                input.name = input.name.replace(`-${formCount - 1}-`, `-${formCount}-`);
+            }
+            if (input.id) {
+                input.id = input.id.replace(`-${formCount - 1}-`, `-${formCount}-`);
+            }
+            if (input.htmlFor) {
+                input.htmlFor = input.htmlFor.replace(`-${formCount - 1}-`, `-${formCount}-`);
+            }
+        });
+        
+        // Очищаем значения в новой форме
+        const selectInputs = newForm.querySelectorAll('select, input[type="number"]');
+        selectInputs.forEach(input => {
+            if (input.type !== 'hidden') {
+                input.value = '';
+            }
+        });
+        
+        container.appendChild(newForm);
+        totalForms.value = formCount + 1;
+    };
+
+    // Функция для удаления критерия
+    container.addEventListener('click', function(e) {
+        if (e.target && e.target.classList.contains('remove-criterion')) {
+            const items = container.querySelectorAll('.criterion-item');
+            if (items.length > 1) {
+                e.target.closest('.criterion-item').remove();
+                
+                // Обновляем индексы оставшихся форм
+                updateFormIndexes();
+            } else {
+                alert('Должен остаться хотя бы один критерий');
+            }
+        }
+    });
+
+    // Функция для обновления индексов форм
+    function updateFormIndexes() {
+        const forms = container.querySelectorAll('.criterion-item');
+        const totalForms = document.getElementById('id_criteria-TOTAL_FORMS');
+        
+        forms.forEach((form, index) => {
+            const formInputs = form.querySelectorAll('input, select, label');
+            formInputs.forEach(input => {
+                if (input.name) {
+                    input.name = input.name.replace(/criteria-\d+/, `criteria-${index}`);
+                }
+                if (input.id) {
+                    input.id = input.id.replace(/criteria-\d+/, `criteria-${index}`);
+                }
+                if (input.htmlFor) {
+                    input.htmlFor = input.htmlFor.replace(/criteria-\d+/, `criteria-${index}`);
+                }
+            });
+        });
+        
+        totalForms.value = forms.length;
+    }
+});
+</script>
+
+{% endblock %}

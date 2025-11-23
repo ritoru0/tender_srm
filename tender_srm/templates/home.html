@@ -1,0 +1,55 @@
+<!-- templates/home.html -->
+{% extends "base.html" %}
+{% block title %}TenderFlow — Главная{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="text-center mb-5">
+        <h1 class="display-4 fw-bold text-primary">TenderFlow</h1>
+        <p class="lead text-muted">Автоматизированная SRM-система для тендеров</p>
+        <hr class="w-25 mx-auto" style="height: 4px; background: linear-gradient(90deg, #4361ee, #7209b7); border: none; border-radius: 2px;">
+    </div>
+
+    <div class="row g-5">
+        <!-- Фирма -->
+        <div class="col-lg-4">
+            <div class="card h-100 text-center p-4 border-0" style="background: linear-gradient(135deg, #4361ee, #3a56d4); color: white;">
+                <div class="card-body">
+                    <i class="bi bi-building-fill icon-lg"></i>
+                    <h3 class="card-title">Фирма</h3>
+                    <p class="card-text">Создание тендеров, выбор поставщиков, автоматизация закупок</p>
+                    <a href="{% url 'register' %}?role=Фирма" class="btn btn-light btn-lg mt-3">Зарегистрироваться</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Поставщик -->
+        <div class="col-lg-4">
+            <div class="card h-100 text-center p-4 border-0" style="background: linear-gradient(135deg, #06d6a0, #05b589); color: white;">
+                <div class="card-body">
+                    <i class="bi bi-truck-front-fill icon-lg"></i>
+                    <h3 class="card-title">Поставщик</h3>
+                    <p class="card-text">Подача заявок, участие в тендерах, быстрая реакция</p>
+                    <a href="{% url 'register' %}?role=Поставщик" class="btn btn-light btn-lg mt-3">Зарегистрироваться</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Менеджер -->
+        <div class="col-lg-4">
+            <div class="card h-100 text-center p-4 border-0" style="background: linear-gradient(135deg, #ffd166, #f4a261);">
+                <div class="card-body">
+                    <i class="bi bi-person-badge-fill icon-lg"></i>
+                    <h3 class="card-title">Менеджер</h3>
+                    <p class="card-text">Проверка документов, верификация, контроль качества</p>
+                    <p class="small text-muted mt-3"><em>Только по приглашению</em></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="text-center mt-5">
+        <p class="text-muted">Автоматизация по BPMN • AHP/TOPSIS • JWT • Django</p>
+    </div>
+</div>
+{% endblock %}
