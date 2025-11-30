@@ -25,7 +25,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.humanize',
-    
+    'drf_yasg',
    
     'rest_framework',
     'rest_framework_simplejwt',
@@ -189,4 +189,16 @@ LOGGING = {
             'propagate': False,
         },
     },
+}
+
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Bearer': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header',
+            'bearerFormat': 'JWT'  
+        }
+    },
+    'OPERATIONS_SORTER': 'alpha'
 }
