@@ -17,6 +17,7 @@ from .serializers import (
 from tenders.services.tender_service import TenderService
 from tenders.services.proposal_service import ProposalService
 from tenders.services.organization_service import OrganizationService
+from api.tasks import send_approval_email_to_firm
 
 
 # ===== АУТЕНТИФИКАЦИЯ =====
@@ -188,7 +189,7 @@ class OrganizationDetailAPIView(generics.RetrieveAPIView):
 
 
 class VerifyOrganizationAPIView(APIView):
-    """Верификация организации менеджером — через сервис (единственная точка правды)"""
+    """Верификация организации менеджером — через сервис + Celery email"""
     permission_classes = [ManagerPermission]
 
     def post(self, request, pk):
@@ -197,21 +198,42 @@ class VerifyOrganizationAPIView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-
+            verification_status = serializer.validated_data['verification_status']
+            
             OrganizationService.verify_organization(
                 manager_user=request.user,
                 org_id=pk,
-                status=serializer.validated_data['verification_status'],
+                status=verification_status,
             )
             
             organization = Organization.objects.get(pk=pk)
-
+            
+            if verification_status == 'Подтверждено' and not organization.approval_email_sent:
+                task = send_approval_email_to_firm.delay(
+                    organization.user.id, 
+                    organization.id
+                )
+                
+                organization.approval_email_sent = True
+                organization.save()
+                
+                email_status = {
+                    "status": "sending_async",
+                    "celery_task_id": task.id,
+                    "user_email": organization.user.email
+                }
+            else:
+                email_status = {
+                    "status": "not_needed" if verification_status != 'Подтверждено' else "already_sent"
+                }
+            
             return Response({
-                'message': f'Организация {serializer.validated_data["verification_status"].lower()}',
+                'message': f'Организация {verification_status.lower()}',
                 'organization_id': organization.id,
                 'verification_status': organization.verification_status,
                 'verified_at': organization.verified_at,
-                'verified_by': organization.verified_by.fio if organization.verified_by else None
+                'verified_by': organization.verified_by.fio if organization.verified_by else None,
+                'email': email_status
             }, status=status.HTTP_200_OK)
 
         except Organization.DoesNotExist:
@@ -220,6 +242,8 @@ class VerifyOrganizationAPIView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_403_FORBIDDEN)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
 
 
 class PendingProposalsAPIView(generics.ListAPIView):
@@ -332,3 +356,4 @@ class ProposalCreateAPIView(APIView):
             return Response({"message": "Заявка подана", "id": proposal.id}, status=201)
         except (PermissionError, ValueError) as e:
             return Response({"error": str(e)}, status=400)
+        

@@ -44,6 +44,7 @@ class Organization(models.Model):
     description = models.TextField(blank=True)
     address = models.CharField(max_length=200, blank=True)
     phone = models.CharField(max_length=20, blank=True)
+    approval_email_sent = models.BooleanField(default=False)
 
     STATUS_CHOICES = (
         ('На проверке', 'На проверке'),
