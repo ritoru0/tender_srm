@@ -1,92 +1,98 @@
 {% extends "base.html" %}
 {% load crispy_forms_tags %}
 
-{% block title %}Подать заявку на тендер{% endblock %}
+{% block title %}Подача заявки: {{ tender.title }}{% endblock %}
 
 {% block content %}
-<div class="container mt-5">
-    <div class="row">
-        <div class="col-md-8">
-            <div class="card shadow">
-                <div class="card-header bg-info text-white">
-                    <h4>Тендер: {{ tender.title }}</h4>
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <div class="card border-0 shadow-lg">
+                <div class="card-header bg-primary text-white text-center py-4">
+                    <h2 class="mb-0">Подача заявки на тендер</h2>
+                    <h4 class="mb-0 opacity-90">{{ tender.title }}</h4>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-5">
+
                     <form method="post" enctype="multipart/form-data">
                         {% csrf_token %}
-                        
-                        <p><strong>Организатор:</strong> {{ tender.organization.name }}</p>
-                        <p><strong>Бюджет:</strong> {{ tender.budget }} ₽</p>
-                        <p><strong>Дата окончания:</strong> {{ tender.end_date }}</p>
 
-                        <hr>
-                        <h5>Загрузите документы для участия</h5>
-                        <p class="text-muted">PDF, до 10 МБ каждый</p>
+                        <div class="row g-4">
+                            {% for tc in tender.criteria.all %}
+                                {% with crit=tc.criterion %}
+                                <div class="col-12">
+                                    <div class="border rounded-3 p-4 {% if crit.criterion_type == 'Количественный' %}bg-light{% else %}bg-white{% endif %} shadow-sm">
+                                        <div class="d-flex justify-content-between align-items-start mb-3">
+                                            <div>
+                                                <h5 class="fw-bold text-primary mb-1">{{ crit.name }}</h5>
+            
+                                            </div>
+                                            <span class="badge bg-{% if crit.direction == 'Максимизирующий' %}success{% else %}warning{% endif %} fs-6">
+                                                {{ crit.get_direction_display }}
+                                            </span>
+                                        </div>
 
-                        <div id="documents-container">
-                            {% for doc_form in document_formset %}
-                                <div class="border p-3 mb-3 rounded document-item">
-                                    {{ doc_form.name|as_crispy_field }}
-                                    {{ doc_form.file|as_crispy_field }}
-                                    <button type="button" class="btn btn-danger btn-sm remove-doc">Удалить</button>
+                                        <p class="text-muted mb-3">{{ crit.description|default:"Описание отсутствует" }}</p>
+
+                                        {% if crit.criterion_type == 'Количественный' %}
+                                            <div class="row align-items-center">
+                                                <div class="col-md-8">
+                                                    <label class="form-label fw-bold">
+                                                        Ваше значение
+                                                        <span class="text-sm">
+                                                            {% if crit.direction == 'Минимизирующий' %}
+                                                                <span class="text-danger">(меньше — лучше)</span>
+                                                            {% else %}
+                                                                <span class="text-success">(больше — лучше)</span>
+                                                            {% endif %}
+                                                        </span>
+                                                    </label>
+                                                    <input type="number"
+                                                           step="0.01"
+                                                           name="criterion_{{ crit.id }}"
+                                                           class="form-control form-control-lg"
+                                                           placeholder="Введите ваше значение"
+                                                           required>
+                                                </div>
+                                            </div>
+                                        {% else %}
+                                            <div class="alert alert-info mb-0">
+                                                <strong>Качественный критерий</strong> — прикрепите подтверждающие документы внизу формы
+                                            </div>
+                                        {% endif %}
+                                    </div>
                                 </div>
+                                {% endwith %}
                             {% endfor %}
                         </div>
 
-                        <button type="button" id="add-document" class="btn btn-outline-secondary mb-3">
-                            Добавить документ
-                        </button>
+                        <hr class="my-5">
 
-                        {{ document_formset.management_form }}
+                        <div class="text-center">
+                            <h4 class="mb-3">Подтверждающие документы</h4>
+                            <p class="text-muted mb-4">
+                                Обязательно для качественных критериев (сертификаты, лицензии, портфолио и т.д.)
+                            </p>
+                            <input type="file"
+                                   name="documents"
+                                   multiple
+                                   class="form-control form-control-lg"
+                                   accept=".pdf,.doc,.docx,.jpg,.jpeg,.png">
+                            <small class="text-muted">Можно загрузить несколько файлов</small>
+                        </div>
 
-                        <div class="text-end mt-4">
-                            <a href="{% url 'tender_detail' tender.id %}" class="btn btn-secondary">Назад</a>
-                            <button type="submit" class="btn btn-success btn-lg">Подать заявку</button>
+                        <div class="text-center mt-5">
+                            <a href="{% url 'tender_detail' tender.id %}" class="btn btn-outline-secondary btn-lg px-5 me-3">
+                                Отмена
+                            </a>
+                            <button type="submit" class="btn btn-success btn-lg px-5">
+                                Подать заявку
+                            </button>
                         </div>
                     </form>
                 </div>
             </div>
         </div>
-
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-header">Критерии оценки</div>
-                <ul class="list-group list-group-flush">
-                    {% for tc in tender.criteria.all %}
-                        <li class="list-group-item">
-                            <strong>{{ tc.criterion.name }}</strong><br>
-                            <small class="text-muted">Вес: {{ tc.weight }} | Макс. балл: {{ tc.criterion.max_value }}</small>
-                        </li>
-                    {% empty %}
-                        <li class="list-group-item text-muted">Критерии не указаны</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
     </div>
 </div>
-
-<script>
-document.getElementById('add-document').onclick = function() {
-    const container = document.getElementById('documents-container');
-    const totalForms = document.querySelector('#id_documents-TOTAL_FORMS');
-    const formCount = parseInt(totalForms.value);
-    const newForm = container.children[0].cloneNode(true);
-    
-    newForm.innerHTML = newForm.innerHTML
-        .replace(/documents-\d+/g, `documents-${formCount}`)
-        .replace(/documents___prefix__/g, `documents-${formCount}`);
-    
-    container.appendChild(newForm);
-    totalForms.value = formCount + 1;
-};
-
-document.addEventListener('click', e => {
-    if (e.target && e.target.classList.contains('remove-doc')) {
-        if (document.querySelectorAll('.document-item').length > 1) {
-            e.target.closest('.document-item').remove();
-        }
-    }
-});
-</script>
 {% endblock %}

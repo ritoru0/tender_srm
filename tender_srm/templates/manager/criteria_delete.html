@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}Удаление критерия{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-lg">
+                <div class="card-header bg-danger text-white text-center py-4">
+                    <h3 class="mb-0">Подтверждение удаления</h3>
+                </div>
+                <div class="card-body p-5 text-center">
+                    <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 4rem;"></i>
+                    <h4 class="mt-4">Вы уверены?</h4>
+                    <p class="lead text-muted">
+                        Критерий <strong class="text-danger">{{ criterion.name }}</strong> будет удалён без возможности восстановления.
+                    </p>
+                    <p class="text-muted">
+                        Это может повлиять на тендеры, где он используется.
+                    </p>
+
+                    <form method="post" class="mt-5">
+                        {% csrf_token %}
+                        <div class="d-flex justify-content-center gap-4">
+                            <a href="{% url 'manager_criteria_list' %}" class="btn btn-lg btn-secondary px-5">
+                                Отмена
+                            </a>
+                            <button type="submit" class="btn btn-lg btn-danger px-5">
+                                Да, удалить навсегда
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

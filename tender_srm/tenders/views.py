@@ -7,12 +7,18 @@ from django.db import transaction
 from django import forms
 from django.forms import formset_factory
 
+from django.core.paginator import Paginator
 from .forms import CustomUserCreationForm
 from .models import User, Organization, Tender, Proposal, Document, Manager, Criterion
 
 from tenders.services.tender_service import TenderService
 from tenders.services.proposal_service import ProposalService
 from tenders.services.organization_service import OrganizationService
+
+from tenders.services.criterion_service import CriterionService
+from django.db.models import Count, Q
+from tenders.services.evaluation_service import EvaluationService
+
 
 class TenderForm(forms.Form):
     title = forms.CharField(
@@ -161,25 +167,31 @@ def dashboard(request):
     if hasattr(user, 'organization'):
         context['organization'] = user.organization
 
-    # Менеджер
+    # ========== МЕНЕДЖЕР ==========
     if user.role == 'Менеджер':
-        context['pending_organizations_count'] = Organization.objects.filter(verification_status='На проверке').count()
-        context['pending_proposals_count'] = Proposal.objects.filter(status__in=['Подана', 'Проверяется']).count()
-        context['active_tenders_count'] = Tender.objects.filter(status='Открыт').count()
+        context.update({
+            'pending_organizations_count': Organization.objects.filter(verification_status='На проверке').count(),
+            'pending_proposals_count': Proposal.objects.filter(status__in=['Подана', 'Проверяется']).count(),
+            'active_tenders_count': Tender.objects.filter(status='Открыт').count(),
+            'criteria_count': Criterion.objects.count(),  # ← ЭТО ОБЯЗАТЕЛЬНО!
+        })
 
-    # Фирма
-    elif user.role == 'Фирма' and hasattr(user, 'organization'):
-        context['my_tenders'] = Tender.objects.filter(organization=user.organization)
-        context['active_tenders'] = Tender.objects.filter(status='Открыт').exclude(organization=user.organization)
+    # ========== ФИРМА ==========
+    elif user.role == 'Фирма':
+        if hasattr(user, 'organization') and user.organization.verification_status == 'Подтверждено':
+            context['my_tenders'] = Tender.objects.filter(organization=user.organization)
+            context['active_tenders'] = Tender.objects.filter(status='Открыт').exclude(organization=user.organization)
 
-    # Поставщик
-    elif user.role == 'Поставщик' and hasattr(user, 'organization'):
-        context['active_tenders'] = Tender.objects.filter(status='Открыт')
-        context['my_proposals'] = Proposal.objects.filter(supplier=user.organization)
+    # ========== ПОСТАВЩИК ==========
+    elif user.role == 'Поставщик':
+        if hasattr(user, 'organization') and user.organization.verification_status == 'Подтверждено':
+            context['active_tenders'] = Tender.objects.filter(status='Открыт')
+            context['my_proposals'] = Proposal.objects.filter(supplier=user.organization)
 
     return render(request, 'dashboard.html', context)
 
 # ===================== МЕНЕДЖЕР =====================
+
 
 @login_required
 def manager_requests(request):
@@ -187,20 +199,31 @@ def manager_requests(request):
         messages.error(request, 'Доступ запрещён')
         return redirect('dashboard')
 
-
-    pending_orgs = Organization.objects.filter(
+    pending_organizations = Organization.objects.filter(
         verification_status='На проверке'
     ).select_related('user')
 
-    pending_proposals = Proposal.objects.filter(
-        status__in=['Подана', 'Проверяется']
-    ).select_related('tender', 'supplier')
+    pending_proposals = Proposal.objects.filter(status='Подана') \
+        .select_related('tender', 'supplier', 'tender__organization') \
+        .annotate(
+            documents_count=Count('documents', distinct=True),
+            quant_count=Count(
+                'evaluations',
+                filter=Q(evaluations__tender_criterion__criterion__criterion_type='Количественный'),
+                distinct=True
+            ),
+            qual_count=Count(
+                'evaluations',
+                filter=Q(evaluations__tender_criterion__criterion__criterion_type='Качественный'),
+                distinct=True
+            )
+        )
 
     return render(request, 'manager/requests.html', {
-        'pending_organizations': pending_orgs,
+        'pending_organizations': pending_organizations,
         'pending_proposals': pending_proposals,
     })
-
+    
 @login_required
 def manager_request_detail(request, request_id):
     if request.user.role != 'Менеджер':
@@ -247,16 +270,109 @@ def manager_verify_organization(request, organization_id):
 
     return redirect('manager_request_detail', request_id=organization_id)
 
+@login_required
+def manager_proposal_evaluate(request, proposal_id):
+    if request.user.role != 'Менеджер':
+        messages.error(request, 'Доступ запрещён')
+        return redirect('dashboard')
+
+    proposal = get_object_or_404(
+        Proposal.objects.select_related('tender', 'supplier', 'tender__organization')
+                       .prefetch_related('documents', 'evaluations__tender_criterion__criterion'),
+        id=proposal_id,
+        status='Подана'
+    )
+
+    # Обновляем автооценки при открытии страницы
+    EvaluationService.recalculate_quantitative_scores(proposal.tender)
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        if action == 'reject':
+            proposal.status = 'Отклонена'
+            proposal.save()
+            messages.success(request, f'Заявка #{proposal.id} отклонена')
+            return redirect('manager_requests')
+
+        elif action == 'approve':
+            # Проверяем, все ли качественные критерии оценены
+            unevaluated = proposal.evaluations.filter(
+                tender_criterion__criterion__criterion_type='Качественный',
+                score=0
+            ).exists()
+
+            if unevaluated:
+                messages.error(request, 'Оцените все качественные критерии перед подтверждением!')
+            else:
+                proposal.status = 'Подтверждена'
+                proposal.save()
+                messages.success(request, f'Заявка #{proposal.id} успешно подтверждена!')
+                return redirect('manager_requests')
+
+    # AJAX — сохранение оценки
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        evaluation_id = request.POST.get('evaluation_id')
+        score_str = request.POST.get('score')
+
+        if not evaluation_id or not score_str:
+            return JsonResponse({'error': 'Нет данных'}, status=400)
+
+        try:
+            score = Decimal(score_str)
+            if not (Decimal('1.0') <= score <= Decimal('10.0')):
+                raise ValueError
+        except:
+            return JsonResponse({'error': 'Оценка должна быть числом от 1 до 10'}, status=400)
+
+        evaluation = get_object_or_404(
+            Evaluation,
+            id=evaluation_id,
+            proposal=proposal,
+            tender_criterion__criterion__criterion_type='Качественный'
+        )
+
+        manager = Manager.objects.get_or_create(user=request.user)[0]
+        EvaluationService.set_manual_score(evaluation, score, manager)
+
+        return JsonResponse({'success': True, 'score': float(score)})
+
+    return render(request, 'manager/proposal_evaluate.html', {
+        'proposal': proposal,
+        'tender': proposal.tender,
+    })
+    
 # ===================== ТЕНДЕРЫ =====================
 
 @login_required
 def tender_list(request):
+    tenders = Tender.objects.filter(status='Открыт').select_related('organization')
+
+    # Фильтры
+    search = request.GET.get('search')
+    method = request.GET.get('method')
+    ordering = request.GET.get('ordering', '-created_at')
+
+    if search:
+        tenders = tenders.filter(title__icontains=search)
+    if method:
+        tenders = tenders.filter(method=method)
+
+    tenders = tenders.order_by(ordering)
+
+    # Пагинация
+
+    paginator = Paginator(tenders, 9)  # 9 тендеров на страницу
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'page_obj': page_obj,
+        'paginator': paginator,
+    }
+
     if request.user.role == 'Фирма' and hasattr(request.user, 'organization'):
-        my_tenders = Tender.objects.filter(organization=request.user.organization)
-        other_tenders = Tender.objects.filter(status='Открыт').exclude(organization=request.user.organization)
-        context = {'my_tenders': my_tenders, 'other_tenders': other_tenders}
-    else:
-        context = {'tenders': Tender.objects.filter(status='Открыт')}
+        context['my_tenders'] = Tender.objects.filter(organization=request.user.organization)
 
     return render(request, 'tenders/tender_list.html', context)
 
@@ -358,5 +474,131 @@ def create_proposal(request, tender_id):
     except Exception as e:
         messages.error(request, str(e))
         return redirect('tender_detail', tender_id)
+
+    return render(request, 'tenders/create_proposal.html', {'tender': tender})
+
+
+class CriterionForm(forms.ModelForm):
+    class Meta:
+        model = Criterion
+        fields = ['name', 'description', 'criterion_type', 'max_value', 'direction']
+        widgets = {
+            'description': forms.Textarea(attrs={'rows': 3, 'class': 'form-control'}),
+            'name': forms.TextInput(attrs={'class': 'form-control'}),
+            'criterion_type': forms.Select(attrs={'class': 'form-select'}),
+            'max_value': forms.NumberInput(attrs={'class': 'form-control', 'step': '0.01'}),
+            'direction': forms.Select(attrs={'class': 'form-select'}),
+        }
+
+@login_required
+def manager_criteria_list(request):
+    if request.user.role != 'Менеджер':
+        messages.error(request, 'Доступ запрещён')
+        return redirect('dashboard')
+
+    # Получаем параметры фильтрации
+    search = request.GET.get('q', '').strip()
+    c_type = request.GET.get('type', '').strip()
+    direction = request.GET.get('direction', '').strip()
+
+    # Используем сервис!
+    criteria = CriterionService.list_criteria(
+        search=search or None,
+        criterion_type=c_type or None,
+        direction=direction or None
+    )
+
+    return render(request, 'manager/criteria_list.html', {
+        'criteria': criteria,
+        'query': search,
+        'type_filter': c_type,
+        'direction_filter': direction,
+    })
+
+@login_required
+def manager_criteria_create(request):
+    if request.user.role != 'Менеджер':
+        return redirect('dashboard')
+
+    if request.method == 'POST':
+        form = CriterionForm(request.POST)
+        if form.is_valid():
+            CriterionService.create_criterion(form.cleaned_data)
+            messages.success(request, 'Критерий успешно создан')
+            return redirect('manager_criteria_list')
+    else:
+        form = CriterionForm()
+
+    return render(request, 'manager/criteria_form.html', {
+        'form': form,
+        'title': 'Создание нового критерия'
+    })
+
+@login_required
+def manager_criteria_edit(request, pk):
+    if request.user.role != 'Менеджер':
+        return redirect('dashboard')
+
+    criterion = get_object_or_404(Criterion, pk=pk)
+
+    if request.method == 'POST':
+        form = CriterionForm(request.POST, instance=criterion)
+        if form.is_valid():
+            CriterionService.update_criterion(criterion, form.cleaned_data)
+            messages.success(request, 'Критерий обновлён')
+            return redirect('manager_criteria_list')
+    else:
+        form = CriterionForm(instance=criterion)
+
+    return render(request, 'manager/criteria_form.html', {
+        'form': form,
+        'title': 'Редактирование критерия'
+    })
+
+@login_required
+def manager_criteria_delete(request, pk):
+    if request.user.role != 'Менеджер':
+        return redirect('dashboard')
+
+    criterion = get_object_or_404(Criterion, pk=pk)
+
+    if request.method == 'POST':
+        CriterionService.delete_criterion(criterion)
+        messages.success(request, 'Критерий удалён')
+        return redirect('manager_criteria_list')
+
+    return render(request, 'manager/criteria_delete.html', {'criterion': criterion})
+
+# views.py
+@login_required
+def create_proposal(request, tender_id):
+    tender = get_object_or_404(
+        Tender.objects.prefetch_related('criteria__criterion'),
+        id=tender_id, status='Открыт'
+    )
+
+    if (request.user.role != 'Поставщик' or 
+        not hasattr(request.user, 'organization') or 
+        request.user.organization.verification_status != 'Подтверждено'):
+        messages.error(request, 'Доступ запрещён')
+        return redirect('tender_detail', tender_id)
+
+    if request.method == 'POST':
+        criteria_values = {}
+        for key, value in request.POST.items():
+            if key.startswith('criterion_'):
+                crit_id = key.split('_')[1]
+                criteria_values[crit_id] = value
+
+        files = request.FILES.getlist('documents')
+
+        try:
+            ProposalService.submit_proposal_with_criteria(
+                request.user, tender_id, criteria_values, files
+            )
+            messages.success(request, 'Заявка успешно подана!')
+            return redirect('tender_detail', tender_id)
+        except Exception as e:
+            messages.error(request, str(e))
 
     return render(request, 'tenders/create_proposal.html', {'tender': tender})

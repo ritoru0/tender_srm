@@ -1,5 +1,5 @@
 from django.db import transaction
-from tenders.models import Proposal, Document
+from tenders.models import Proposal, Document  
 
 
 class ProposalRepository:
@@ -9,7 +9,7 @@ class ProposalRepository:
             proposal = Proposal.objects.create(
                 tender=tender,
                 supplier=supplier,
-                status="Подана"
+                status='Подана'  
             )
             for file in files:
                 Document.objects.create(

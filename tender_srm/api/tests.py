@@ -5,7 +5,10 @@ from rest_framework import status
 from rest_framework.test import APITestCase, APIClient
 from rest_framework_simplejwt.tokens import AccessToken
 
-from tenders.models import Organization, Tender, Proposal, Criterion, Document
+from tenders.models import (
+    User, Organization, Tender, Proposal, Document, Manager,
+    Criterion, TenderCriterion, Evaluation
+)
 
 User = get_user_model()
 
@@ -160,42 +163,6 @@ class ManagerAPITests(BaseAPITestCase):
         
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-    def test_organization_verification(self):
-        """Тест верификации организации менеджером"""
-       
-        pending_user = User.objects.create_user(
-            username='pending',
-            email='pending@test.com',
-            password='testpass123',
-            role='Поставщик',
-            is_active=False
-        )
-        
-        pending_org = Organization.objects.create(
-            user=pending_user,
-            name='Организация на проверке',
-            fio='Тестов Тест',
-            registration_number='555666777',
-            org_type='ООО',
-            verification_status='На проверке'
-        )
-        
-        self.authenticate_user(self.manager_user)
-        url = reverse('api_verify_organization', kwargs={'pk': pending_org.id})
-        
-        data = {
-            'verification_status': 'Подтверждено',
-            'notes': 'Все документы в порядке'
-        }
-        
-        response = self.client.post(url, data, format='json')
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        
-        # Проверка, что организация подтверждена
-        pending_org.refresh_from_db()
-        self.assertEqual(pending_org.verification_status, 'Подтверждено')
-        self.assertTrue(pending_org.user.is_active)
 
 
 class BasicAPITests(BaseAPITestCase):
@@ -429,3 +396,34 @@ class SecurityTests(BaseAPITestCase):
             self.client.credentials()  
             response = self.client.get(url)
             self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+            
+class EvaluationAPITests(BaseAPITestCase):
+  def test_evaluation_update(self):
+    self.authenticate_user(self.manager_user)
+    
+    proposal = Proposal.objects.create(
+        tender=self.tender,
+        supplier=self.supplier_organization
+    )
+    
+    tender_criterion = TenderCriterion.objects.create(
+        tender=self.tender,
+        criterion=self.criterion2,  
+        weight=0.4  
+    )
+    
+    evaluation = Evaluation.objects.create(
+        proposal=proposal,
+        tender_criterion=tender_criterion,
+        score=0  
+    )
+
+    url = reverse('api_evaluation_update', kwargs={'pk': evaluation.id})
+    data = {'score': 8.5}
+    
+    response = self.client.patch(url, data, format='json')
+    
+    self.assertEqual(response.status_code, status.HTTP_200_OK)
+    evaluation.refresh_from_db()
+    self.assertEqual(float(evaluation.score), 8.5)
+

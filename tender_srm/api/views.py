@@ -6,13 +6,16 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from django.utils import timezone
 from django.db import transaction
-from tenders.models import User, Organization, Tender, Proposal, Document, Manager
+from rest_framework import generics
+from tenders.services.evaluation_service import EvaluationService
+from tenders.models import User, Organization, Tender, Proposal, Document, Manager, Evaluation
 from .serializers import (
     OrganizationRegistrationSerializer, UserSerializer,
     OrganizationDetailSerializer, ProposalSerializer,
     OrganizationVerificationSerializer, ProposalVerificationSerializer,
     TenderSerializer, TenderDetailSerializer,
-    TenderCreateSerializer, TenderListSerializer, ProposalCreateSerializer
+    TenderCreateSerializer, TenderListSerializer, ProposalCreateSerializer,
+    EvaluationSerializer, ProposalDetailSerializer  
 )
 from tenders.services.tender_service import TenderService
 from tenders.services.proposal_service import ProposalService
@@ -357,3 +360,27 @@ class ProposalCreateAPIView(APIView):
         except (PermissionError, ValueError) as e:
             return Response({"error": str(e)}, status=400)
         
+class ProposalDetailAPIView(generics.RetrieveAPIView):
+    permission_classes = [ManagerPermission]
+    serializer_class = ProposalDetailSerializer
+    queryset = Proposal.objects.all()
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        EvaluationService.recalculate_quantitative_scores(instance.tender)
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+class EvaluationUpdateAPIView(generics.UpdateAPIView):
+    permission_classes = [ManagerPermission]
+    serializer_class = EvaluationSerializer
+    queryset = Evaluation.objects.all()
+
+    def perform_update(self, serializer):
+        evaluation = self.get_object()
+        manager = Manager.objects.get_or_create(user=self.request.user)[0]
+        EvaluationService.set_manual_score(
+        evaluation,
+        serializer.validated_data['score'],
+        manager
+    )

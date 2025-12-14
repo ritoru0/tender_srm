@@ -180,13 +180,28 @@ class Document(models.Model):
 class Evaluation(models.Model):
     proposal = models.ForeignKey(Proposal, on_delete=models.CASCADE, related_name='evaluations')
     tender_criterion = models.ForeignKey(TenderCriterion, on_delete=models.CASCADE)
-    score = models.DecimalField(max_digits=5, decimal_places=2, validators=[MinValueValidator(1), MaxValueValidator(10)])
     comment = models.TextField(blank=True)
     evaluator = models.ForeignKey(Manager, on_delete=models.SET_NULL, null=True, blank=True)
     evaluated_at = models.DateTimeField(auto_now_add=True)
-
+    proposed_value = models.DecimalField(
+        "Значение от поставщика",
+        max_digits=15,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text="Для количественных критериев (цена, срок и т.д.)"
+    )
+    
+    score = models.DecimalField(
+        "Оценка менеджера",
+        max_digits=5,
+        decimal_places=2,
+        validators=[MinValueValidator(1), MaxValueValidator(10)]
+    )
+    is_auto_calculated = models.BooleanField("Автоматически рассчитана", default=False)
     class Meta:
         unique_together = ('proposal', 'tender_criterion')
+        
 
 
 class Contract(models.Model):

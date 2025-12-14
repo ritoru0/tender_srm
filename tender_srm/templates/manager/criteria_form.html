@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}
+    {{ title|default:"Критерий оценки" }}
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-xl-6">
+            <div class="card shadow-lg border-0 rounded-4">
+                <div class="card-header bg-gradient bg-primary text-white text-center py-4">
+                    <h2 class="mb-0">
+                        {% if object %}
+                            Редактирование критерия
+                        {% else %}
+                            Новый критерий оценки
+                        {% endif %}
+                    </h2>
+                </div>
+                <div class="card-body p-5">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="row g-4">
+                            <div class="col-12">
+                                {{ form.name|as_crispy_field }}
+                            </div>
+                            <div class="col-12">
+                                {{ form.description|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.criterion_type|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.direction|as_crispy_field }}
+                            </div>
+                            <div class="col-md-6">
+                                {{ form.max_value|as_crispy_field }}
+                            </div>
+                        </div>
+
+                        <hr class="my-5">
+
+                        <div class="d-flex justify-content-end gap-3">
+                            <a href="{% url 'manager_criteria_list' %}" class="btn btn-lg btn-secondary px-5">
+                                Отмена
+                            </a>
+                            <button type="submit" class="btn btn-lg btn-success px-5">
+                                {% if object %}Сохранить изменения{% else %}Создать критерий{% endif %}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

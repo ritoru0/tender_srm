@@ -227,3 +227,25 @@ class ProposalCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         validated_data['supplier'] = self.context['request'].user.organization
         return super().create(validated_data)
+    
+class EvaluationSerializer(serializers.ModelSerializer):
+    tender_criterion = TenderCriterionSerializer(read_only=True)
+    proposed_value = serializers.DecimalField(max_digits=15, decimal_places=2, required=False)  
+    score = serializers.DecimalField(max_digits=5, decimal_places=2, min_value=1, max_value=10)  
+
+    class Meta:
+        model = Evaluation
+        fields = ('id', 'proposal', 'tender_criterion', 'proposed_value', 'score', 'comment', 'is_auto_calculated', 'evaluated_at')
+        read_only_fields = ('proposal', 'is_auto_calculated', 'evaluated_at')  
+    def validate(self, data):
+        criterion_type = self.instance.tender_criterion.criterion.criterion_type if self.instance else data['tender_criterion'].criterion.criterion_type
+        if criterion_type == 'Количественный' and 'score' in data:
+            raise serializers.ValidationError("Количественные критерии рассчитываются автоматически.")
+        return data
+
+class ProposalDetailSerializer(ProposalSerializer):
+    evaluations = EvaluationSerializer(many=True, read_only=True)
+    documents = DocumentSerializer(many=True, read_only=True)
+
+    class Meta(ProposalSerializer.Meta):
+        fields = ProposalSerializer.Meta.fields + ('evaluations', 'documents')

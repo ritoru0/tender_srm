@@ -21,6 +21,8 @@ urlpatterns = [
     path('manager/organizations/<int:pk>/verify/', views.VerifyOrganizationAPIView.as_view(), name='api_verify_organization'),
     path('manager/pending-proposals/', views.PendingProposalsAPIView.as_view(), name='api_pending_proposals'),
     path('manager/proposals/<int:pk>/verify/', views.VerifyProposalAPIView.as_view(), name='api_verify_proposal'),
+    path('manager/proposals/<int:pk>/', views.ProposalDetailAPIView.as_view(), name='api_proposal_detail'),
+    path('manager/evaluations/<int:pk>/', views.EvaluationUpdateAPIView.as_view(), name='api_evaluation_update'),
     
     # Тендеры
     path('tenders/', views.TenderListAPIView.as_view(), name='api_tender_list'),

@@ -6,47 +6,61 @@
 {% block content %}
 <div class="container mt-5">
     <div class="row justify-content-center">
-        <div class="col-md-10">
-            <div class="card shadow">
-                <div class="card-header bg-primary text-white">
+        <div class="col-lg-10">
+            <div class="card shadow-lg border-0">
+                <div class="card-header bg-gradient-primary text-white text-center py-4">
                     <h3 class="mb-0">Создать новый тендер</h3>
                 </div>
-                <div class="card-body">
-                    <form method="post" enctype="multipart/form-data">
+
+                <div class="card-body p-5">
+                    <form method="post" id="tender-form" enctype="multipart/form-data">
                         {% csrf_token %}
-                        
-                        <!-- Основная информация о тендере -->
-                        <h5 class="mb-3">Основная информация</h5>
-                        <div class="row">
-                            <div class="col-md-6">
-                                {{ form.title|as_crispy_field }}
-                                {{ form.method|as_crispy_field }}
-                            </div>
-                            <div class="col-md-6">
-                                {{ form.start_date|as_crispy_field }}
-                                {{ form.end_date|as_crispy_field }}
+
+                        <!-- Основная информация -->
+                        <h5 class="text-primary mb-4">Основная информация</h5>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">{{ form.title|as_crispy_field }}</div>
+                            <div class="col-md-6">{{ form.method|as_crispy_field }}</div>
+                        </div>
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-6">{{ form.start_date|as_crispy_field }}</div>
+                            <div class="col-md-6">{{ form.end_date|as_crispy_field }}</div>
+                        </div>
+                        <div class="mb-4">{{ form.description|as_crispy_field }}</div>
+                        <div class="mb-5">{{ form.budget|as_crispy_field }}</div>
+
+                        <hr class="my-5">
+
+                        <!-- Критерии -->
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h5 class="text-primary mb-0">Критерии оценки</h5>
+                            <div>
+                                <small class="text-muted me-3">Сумма весов:</small>
+                                <span id="total-weight-display" class="badge bg-danger fs-6">0.0000</span>
+                                <span class="text-success ms-2">должна быть 1.0000</span>
                             </div>
                         </div>
-                        
-                        {{ form.description|as_crispy_field }}
-                        {{ form.budget|as_crispy_field }}
 
-                        <hr>
-                        
-                        <!-- Критерии оценки -->
-                        <h5 class="mb-3">Критерии оценки</h5>
                         <div id="criteria-container">
                             {{ criteria_formset.management_form }}
-                            {% for criterion_form in criteria_formset %}
-                                <div class="border p-3 mb-3 rounded criterion-item">
-                                    {{ criterion_form.criterion|as_crispy_field }}
-                                    <div class="row">
-                                        <div class="col-md-6">
-                                            {{ criterion_form.weight|as_crispy_field }}
+
+                            {% for form in criteria_formset %}
+                                <div class="criterion-item border rounded p-4 mb-3 bg-light position-relative">
+
+                                    <!-- Скрытые поля -->
+                                    {% if form.instance.pk %}{{ form.id }}{% endif %}
+                                    {{ form.DELETE }}
+
+                                    <div class="row g-3 align-items-end">
+                                        <div class="col-md-7">
+                                            {{ form.criterion|as_crispy_field }}
                                         </div>
-                                        <div class="col-md-6">
-                                            <button type="button" class="btn btn-danger btn-sm remove-criterion mt-4">
-                                                Удалить критерий
+                                        <div class="col-md-4">
+                                            {{ form.weight|as_crispy_field }}
+                                        </div>
+                                        <div class="col-md-1">
+                                            <button type="button" class="btn btn-danger btn-sm remove-criterion">
+                                                Удалить
                                             </button>
                                         </div>
                                     </div>
@@ -54,13 +68,20 @@
                             {% endfor %}
                         </div>
 
-                        <button type="button" id="add-criterion" class="btn btn-outline-secondary mb-3">
-                            + Добавить критерий
-                        </button>
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <button type="button" id="add-criterion" class="btn btn-outline-primary">
+                                + Добавить критерий
+                            </button>
 
-                        <div class="text-end mt-4">
-                            <a href="{% url 'tender_list' %}" class="btn btn-secondary me-2">Отмена</a>
-                            <button type="submit" class="btn btn-success btn-lg">Создать тендер</button>
+                            <div id="weight-error" class="alert alert-danger d-none">
+                                <strong>Ошибка!</strong> Сумма весов должна быть ровно <strong>1.0000</strong><br>
+                                Сейчас: <span id="current-sum">0</span>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-3 mt-5">
+                            <a href="{% url 'tender_list' %}" class="btn btn-secondary btn-lg">Отмена</a>
+                            <button type="submit" class="btn btn-success btn-lg px-5">Создать тендер</button>
                         </div>
                     </form>
                 </div>
@@ -69,89 +90,96 @@
     </div>
 </div>
 
+<!-- Пустая форма-шаблон для клонирования -->
+<template id="empty-criterion-template">
+    <div class="criterion-item border rounded p-4 mb-3 bg-light position-relative">
+        <div class="row g-3 align-items-end">
+            <div class="col-md-7">
+                <div class="form-group">
+                    <label class="form-label">Критерий</label>
+                    <select name="criteria-__prefix__-criterion" class="form-select" required id="id_criteria-__prefix__-criterion">
+                        <option value="">---------</option>
+                        {% for crit in criteria_formset.forms.0.criterion.field.queryset %}
+                            <option value="{{ crit.id }}">{{ crit.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label class="form-label">Вес (0.00–1.00)</label>
+                    <input type="number" name="criteria-__prefix__-weight" step="0.01" min="0" max="1" class="form-control" id="id_criteria-__prefix__-weight">
+                </div>
+            </div>
+            <div class="col-md-1">
+                <button type="button" class="btn btn-danger btn-sm remove-criterion">Удалить</button>
+            </div>
+        </div>
+    </div>
+</template>
+
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const container = document.getElementById('criteria-container');
-    const totalForms = document.getElementById('id_criteria-TOTAL_FORMS');
+    const totalForms = document.querySelector('#id_criteria-TOTAL_FORMS');
     const addButton = document.getElementById('add-criterion');
-    
-    // Функция для добавления нового критерия
-    addButton.onclick = function() {
+    const template = document.getElementById('empty-criterion-template').content;
+    const errorDiv = document.getElementById('weight-error');
+    const currentSumSpan = document.getElementById('current-sum');
+    const totalDisplay = document.getElementById('total-weight-display');
+
+    function updateTotalWeight() {
+        let total = 0;
+        document.querySelectorAll('input[name*="weight"]').forEach(input => {
+            total += parseFloat(input.value) || 0;
+        });
+        totalDisplay.textContent = total.toFixed(4);
+        totalDisplay.className = 'badge fs-6 ' + (Math.abs(total - 1.0) < 0.001 ? 'bg-success' : 'bg-danger');
+        return total;
+    }
+
+    addButton.addEventListener('click', function () {
         const formCount = parseInt(totalForms.value);
-        const lastForm = container.querySelector('.criterion-item:last-child');
-        
-        if (!lastForm) return;
-        
-        const newForm = lastForm.cloneNode(true);
-        
-        // Обновляем индексы в новой форме
-        const regex = new RegExp(`-${formCount - 1}-`, 'g');
-        newForm.innerHTML = newForm.innerHTML.replace(regex, `-${formCount}-`);
-        
-        // Обновляем id и name атрибуты
-        const inputs = newForm.querySelectorAll('input, select, label');
-        inputs.forEach(input => {
-            if (input.name) {
-                input.name = input.name.replace(`-${formCount - 1}-`, `-${formCount}-`);
-            }
-            if (input.id) {
-                input.id = input.id.replace(`-${formCount - 1}-`, `-${formCount}-`);
-            }
-            if (input.htmlFor) {
-                input.htmlFor = input.htmlFor.replace(`-${formCount - 1}-`, `-${formCount}-`);
-            }
+        const newForm = template.cloneNode(true);
+
+        // Заменяем __prefix__ на текущий индекс
+        newForm.querySelectorAll('[name], [id]').forEach(el => {
+            if (el.name) el.name = el.name.replace('__prefix__', formCount);
+            if (el.id) el.id = el.id.replace('__prefix__', formCount);
         });
-        
-        // Очищаем значения в новой форме
-        const selectInputs = newForm.querySelectorAll('select, input[type="number"]');
-        selectInputs.forEach(input => {
-            if (input.type !== 'hidden') {
-                input.value = '';
-            }
-        });
-        
+
         container.appendChild(newForm);
         totalForms.value = formCount + 1;
-    };
+        updateTotalWeight();
+    });
 
-    // Функция для удаления критерия
-    container.addEventListener('click', function(e) {
-        if (e.target && e.target.classList.contains('remove-criterion')) {
-            const items = container.querySelectorAll('.criterion-item');
-            if (items.length > 1) {
-                e.target.closest('.criterion-item').remove();
-                
-                // Обновляем индексы оставшихся форм
-                updateFormIndexes();
-            } else {
-                alert('Должен остаться хотя бы один критерий');
-            }
+    container.addEventListener('click', function (e) {
+        const btn = e.target.closest('.remove-criterion');
+        if (btn && container.querySelectorAll('.criterion-item').length > 1) {
+            btn.closest('.criterion-item').remove();
+            updateTotalWeight();
         }
     });
 
-    // Функция для обновления индексов форм
-    function updateFormIndexes() {
-        const forms = container.querySelectorAll('.criterion-item');
-        const totalForms = document.getElementById('id_criteria-TOTAL_FORMS');
-        
-        forms.forEach((form, index) => {
-            const formInputs = form.querySelectorAll('input, select, label');
-            formInputs.forEach(input => {
-                if (input.name) {
-                    input.name = input.name.replace(/criteria-\d+/, `criteria-${index}`);
-                }
-                if (input.id) {
-                    input.id = input.id.replace(/criteria-\d+/, `criteria-${index}`);
-                }
-                if (input.htmlFor) {
-                    input.htmlFor = input.htmlFor.replace(/criteria-\d+/, `criteria-${index}`);
-                }
-            });
-        });
-        
-        totalForms.value = forms.length;
-    }
+    container.addEventListener('input', updateTotalWeight);
+
+    document.getElementById('tender-form').addEventListener('submit', function (e) {
+        const total = updateTotalWeight();
+        if (Math.abs(total - 1.0) > 0.001) {
+            e.preventDefault();
+            errorDiv.classList.remove('d-none');
+            currentSumSpan.textContent = total.toFixed(4);
+            errorDiv.scrollIntoView({behavior: 'smooth'});
+        }
+    });
+
+    // Инициализация
+    updateTotalWeight();
 });
 </script>
 
+<style>
+    .bg-gradient-primary { background: linear-gradient(135deg, #4361ee, #3f37c9) !important; }
+    #total-weight-display { font-size: 1.2rem; min-width: 90px; text-align: center; }
+</style>
 {% endblock %}

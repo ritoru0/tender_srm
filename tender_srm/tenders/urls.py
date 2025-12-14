@@ -12,6 +12,11 @@ urlpatterns = [
     path('manager/requests/', views.manager_requests, name='manager_requests'),
     path('manager/request/<int:request_id>/', views.manager_request_detail, name='manager_request_detail'),
     path('manager/verify-organization/<int:organization_id>/', views.manager_verify_organization, name='manager_verify_organization'),
+    path('manager/criteria/', views.manager_criteria_list, name='manager_criteria_list'),
+    path('manager/criteria/create/', views.manager_criteria_create, name='manager_criteria_create'),
+    path('manager/criteria/<int:pk>/edit/', views.manager_criteria_edit, name='manager_criteria_edit'),
+    path('manager/criteria/<int:pk>/delete/', views.manager_criteria_delete, name='manager_criteria_delete'),
+    path('manager/proposal/<int:proposal_id>/evaluate/', views.manager_proposal_evaluate, name='manager_proposal_evaluate'),
     
     # Тендеры
     path('tenders/', views.tender_list, name='tender_list'),
